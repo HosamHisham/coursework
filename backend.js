@@ -1,48 +1,45 @@
 const hostname = '127.0.0.1';
-
 const port = 3000;
 
 const express = require('express');
-
 const bodyParser = require('body-parser');
-
 const sqlite3 = require('sqlite3').verbose();
-
 const bcrypt = require('bcryptjs');
 
 const app = express();
-
 app.use(bodyParser.json());
 
 const db = new sqlite3.Database('./recipes.db');
 
-//server for hosting
-app.get('/', (req,res) => 
-    {
-      res.send('Hello world!');
-    });
+// Server for hosting
+app.get('/', (req, res) => {
+    res.send('Hello world!');
+});
+
 app.listen(port, hostname, () => {
     console.log(`Server running at http://${hostname}:${port}/`);
 });
-    
+
 setInterval(() => {
     console.log('Heartbeat: Server is still running...');
 }, 2500);
 
-// Create the users table
+// Create the users table with the role column
 const createUsersTableQuery = `
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
-    password TEXT NOT NULL
+    password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'guest'  -- Default role is 'guest'
   );
 `;
 
 db.run(createUsersTableQuery, (err) => {
   if (err) {
-    return console.error("Error creating users table:", err.message);
+    console.error("Error creating users table:", err.message);
+  } else {
+    console.log("Users table created successfully");
   }
-  console.log("Users table created successfully");
 });
 
 // Create the recipes table
@@ -57,110 +54,116 @@ const createRecipesTableQuery = `
   );
 `;
 
-
 db.run(createRecipesTableQuery, (err) => {
   if (err) {
-    return console.error("Error creating recipes table:", err.message);
+    console.error("Error creating recipes table:", err.message);
+  } else {
+    console.log("Recipes table created successfully");
   }
-  console.log("Recipes table created successfully");
 });
 
-// Close the database connection
-db.close();
+// Middleware to check if the user is an admin
+function isAdmin(req, res, next) {
+    const { role } = req.body;  
 
+    if (role !== 'admin') {
+        return res.status(403).json({ message: 'Permission denied. Admins only.' });
+    }
+    next();
+}
 
-//signup api
-
+// Signup API
 app.post('/signup', (req, res) => {
-    const{username, password } = req.body;
+    const { username, password, role } = req.body;
+
+    
+    const userRole = role || 'guest';  
+
     const hash = bcrypt.hashSync(password, 10);
 
-    const sql = 'INSERT INTO users (username, password) VALUES (?,?)';
-    db.run(sql, [username, hash], function (err) {
-            if(err) {
-                return res.status(500).json({message: 'error in signing up :('});
-            }
-            res.status(201).json({message: 'user created :) '});
-        
+    const sql = 'INSERT INTO users (username, password, role) VALUES (?, ?, ?)';
+    db.run(sql, [username, hash, userRole], function (err) {
+        if (err) {
+            console.error("Error signing up:", err.message);  
+            return res.status(500).json({ message: 'Error in signing up' });
+        }
+        res.status(201).json({ message: 'User created successfully' });
     });
 });
 
-
-//login api
-
+// Login API
 app.post('/login', (req, res) => {
-    const {username, password } = req.body;
+    const { username, password } = req.body;
 
     db.get('SELECT * FROM users WHERE username = ?', [username], (err, row) => {
-        if(err || !row){
-            return res.status(404).json({ message: 'User not found'});
+        if (err || !row) {
+            return res.status(404).json({ message: 'User not found' });
         }
         if (bcrypt.compareSync(password, row.password)) {
-            res.status(200).json({message: 'login successful'});
+            res.status(200).json({
+                message: 'Login successful',
+                role: row.role  // Include the role in the response
+            });
         } else {
-            res.status(400).json({message: 'wrong password or username'});
+            res.status(400).json({ message: 'Wrong password or username' });
         }
     });
 });
 
-//get recipes by category
-
+// Get recipes by category (available to everyone)
 app.get('/recipes/:category', (req, res) => {
-    const {category} = req.params;
+    const { category } = req.params;
     db.all(
         'SELECT * FROM recipes WHERE category = ?',
         [category],
         (err, rows) => {
             if (err) {
-                return res.status(500).json({ message: 'cant find recipe'});
+                return res.status(500).json({ message: 'Unable to find recipe' });
             }
             res.status(200).json(rows);
         }
     );
 });
 
-// create a new recipe
-app.post('/recipes', (req, res) => {
-    const {title, description, ingredients, instructions, category} = req.body;
+// Create a new recipe (admin only)
+app.post('/recipes', isAdmin, (req, res) => {
+    const { title, description, ingredients, instructions, category } = req.body;
     db.run(
-        'INSERT INTO recipes (title,description, ingredients, instructions, category) VALUES(?,?,?,?,?)',
+        'INSERT INTO recipes (title, description, ingredients, instructions, category) VALUES (?, ?, ?, ?, ?)',
         [title, description, ingredients, instructions, category],
         function (err) {
             if (err) {
-                return res.status(500).json({ message: 'problem while adding recipe'});
-
+                return res.status(500).json({ message: 'Problem while adding recipe' });
             }
-            res.status(201).json({message: 'recipe added suuccessfuly'});
+            res.status(201).json({ message: 'Recipe added successfully' });
         }
     );
 });
 
-// update a recipe
-app.put('/recipes/:id', (req, res) => {
-    const {id} = req.params;
-    const { title, description, ingredients, instructions, category} = req.body;
+// Update a recipe (admin only)
+app.put('/recipes/:id', isAdmin, (req, res) => {
+    const { id } = req.params;
+    const { title, description, ingredients, instructions, category } = req.body;
 
     db.run(
         'UPDATE recipes SET title = ?, description = ?, ingredients = ?, instructions = ?, category = ? WHERE id = ?',
         [title, description, ingredients, instructions, category, id],
         function (err) {
             if (err) {
-                return res.status(500).json({message: 'error in recipe updating'});
+                return res.status(500).json({ message: 'Error updating recipe' });
             }
-            res.status(200).json({message: 'update successfull'});
+            res.status(200).json({ message: 'Update successful' });
         }
     );
 });
 
-//delete recipe
-app.delete('/recipe/:id', (req, res) => {
-    const {id} = req.params;
-    db.run('DELETE FROM recipes WHERE id = ?', [id], function (err){
-        if(err) {
-            return res.status(500).json({message: 'problem while deleting'});
+// Delete a recipe (admin only)
+app.delete('/recipe/:id', isAdmin, (req, res) => {
+    const { id } = req.params;
+    db.run('DELETE FROM recipes WHERE id = ?', [id], function (err) {
+        if (err) {
+            return res.status(500).json({ message: 'Problem while deleting' });
         }
-        res.status(200).json({message: 'recipe deleted'});
+        res.status(200).json({ message: 'Recipe deleted successfully' });
     });
 });
-
-
