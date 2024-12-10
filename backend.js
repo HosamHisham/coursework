@@ -5,63 +5,43 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
-<<<<<<< Updated upstream
-
-const app = express();
-app.use(bodyParser.json());
-=======
 const cors = require('cors');
 const path = require('path');
 
-
 const app = express();
 app.use(bodyParser.json());
-app.use(cors()); 
->>>>>>> Stashed changes
+app.use(cors());
 
 const db = new sqlite3.Database('./recipes.db');
 
 // Server for hosting
 app.get('/', (req, res) => {
-<<<<<<< Updated upstream
-    res.send('Hello world!');
-});
-=======
     const filePath = path.join(__dirname, 'home.html');  
     res.sendFile(filePath);
 });
-   
-
->>>>>>> Stashed changes
 
 app.listen(port, hostname, () => {
     console.log(`Server running at http://${hostname}:${port}/`);
 });
 
-<<<<<<< Updated upstream
+// Heartbeat to check server status
 setInterval(() => {
     console.log('Heartbeat: Server is still running...');
 }, 2500);
 
-=======
->>>>>>> Stashed changes
 // Create the users table with the role column
 const createUsersTableQuery = `
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
     password TEXT NOT NULL,
-<<<<<<< Updated upstream
     role TEXT NOT NULL DEFAULT 'guest'  -- Default role is 'guest'
-=======
-    role TEXT NOT NULL DEFAULT 'guest'
->>>>>>> Stashed changes
   );
 `;
 
 db.run(createUsersTableQuery, (err) => {
   if (err) {
-    console.error("Error creating users table:", err.message);
+    console.error("Error creating users table:", err.message);  
   } else {
     console.log("Users table created successfully");
   }
@@ -81,7 +61,7 @@ const createRecipesTableQuery = `
 
 db.run(createRecipesTableQuery, (err) => {
   if (err) {
-    console.error("Error creating recipes table:", err.message);
+    console.error("Error creating recipes table:", err.message);  
   } else {
     console.log("Recipes table created successfully");
   }
@@ -100,11 +80,6 @@ function isAdmin(req, res, next) {
 // Signup API
 app.post('/signup', (req, res) => {
     const { username, password, role } = req.body;
-<<<<<<< Updated upstream
-
-    
-=======
->>>>>>> Stashed changes
     const userRole = role || 'guest';  
 
     const hash = bcrypt.hashSync(password, 10);
@@ -130,11 +105,7 @@ app.post('/login', (req, res) => {
         if (bcrypt.compareSync(password, row.password)) {
             res.status(200).json({
                 message: 'Login successful',
-<<<<<<< Updated upstream
                 role: row.role  // Include the role in the response
-=======
-                role: row.role
->>>>>>> Stashed changes
             });
         } else {
             res.status(400).json({ message: 'Wrong password or username' });
@@ -142,11 +113,7 @@ app.post('/login', (req, res) => {
     });
 });
 
-<<<<<<< Updated upstream
-// Get recipes by category (available to everyone)
-=======
 // Get recipes by category
->>>>>>> Stashed changes
 app.get('/recipes/:category', (req, res) => {
     const { category } = req.params;
     db.all(
